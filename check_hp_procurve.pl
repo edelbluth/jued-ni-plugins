@@ -8,7 +8,7 @@
 
 use strict;
 
-my $VERSION = "0.0.2.3";
+my $VERSION = "0.0.2.4";
 
 # ########## Defining exit codes
 
@@ -402,4 +402,4 @@ __VERBOSE_PARAMETER_OUT
 
 # ###########################################################
 
-&UNKNOWN("Plugin exited without gathering a status.");
+&UNKNOWN('Plugin exited without gathering a status.');
