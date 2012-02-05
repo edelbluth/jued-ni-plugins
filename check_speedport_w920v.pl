@@ -23,7 +23,7 @@ my %EXIT_VALUES = (
 
 my $p_verbose = 0;
 my $p_help = 0;
-my $p_host = '127.0.0.1';
+my $p_host = 'speedport.ip';
 my $p_test = '';
 my $p_ok = '';
 my $p_warning = '';
@@ -62,7 +62,6 @@ sub OK # Parameter 1: Message
 {
 	&doExit('OK', $_[0]); 
 }
-
 
 # ###########################################################
 
@@ -137,13 +136,17 @@ Usage:
 	    -nc                      Negate -c regex 
 		
 	There are following Tests (-T):
+		Access/public_ip         Get the current public IP address (or 'unknown')
+		Access/always_on         Get the "Always on" config state ('yes' or 'no')
+		DSL/upstream             Upstream in KiloBit/s
+		DSL/downstream           Downstream in KiloBit/s
+		WLAN/active              Is the WLAN active?
+		WLAN/encrypted           Is an WLAN encryption configured?
 	
-	Configuration proposals: 
-	+-----------------------+-----------------------+-----------------------+-----------------------+-----------------------+-----------------------+
-	| Test (-t)             | OK-Value (-o)         | Warning-Value (-w)    | Critical-Value (-c)   | On SNMP Fail (-f)     | On Unknown (-u)       |
-	+-----------------------+-----------------------+-----------------------+-----------------------+-----------------------+-----------------------|
-	|                       |                       |                       |                       |                       |                       |
-	+-----------------------+-----------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+		
+	IMPORTANT: This Plugin needs LWP::UserAgent and LWP::Protocol::https installed! Use CPAN or your package management system.
+	
+	Only tested with the German language version of the w920v with the firmware version 65.04.78. 
 		
 __USAGE
 	print $usage;
@@ -181,9 +184,286 @@ sub is_critical
 	return &_is($_[0], $p_critical);
 }
 
+sub _fail
+{
+	SWITCH:
+	{
+		$p_onfail =~ m/^c/i && do { &CRITICAL($_[0]); last SWITCH; };	
+		$p_onfail =~ m/^w/i && do { &WARNING($_[0]); last SWITCH; };	
+		$p_onfail =~ m/^o/i && do { &OK($_[0]); last SWITCH; };
+		&UNKNOWN($_[0]);	
+	};
+}
+
+sub _unknown
+{
+	SWITCH:
+	{
+		$p_onunknown =~ m/^c/i && do { &CRITICAL($_[0]); last SWITCH; };	
+		$p_onunknown =~ m/^w/i && do { &WARNING($_[0]); last SWITCH; };	
+		$p_onunknown =~ m/^o/i && do { &OK($_[0]); last SWITCH; };
+		&UNKNOWN($_[0]);	
+	};
+}
+
+sub _gatherWLAN
+{
+	my $r = $_[0];
+	my %cr = %{$r};
+	my $l = $_[1];
+	my @lines = @{$l};
+	if ($cr{'WLAN'}{'starts_at'} < 0)
+	{
+		return;
+	}
+	for (my $i = ($cr{'WLAN'}{'starts_at'} + 1); $i < $#lines; $i++)
+	{
+		if ($lines[$i] =~ m/(<div class=titel>)/i)
+		{
+			last;
+		}
+		if ($lines[$i] =~ m/(<div class=colStat>Betriebszustand:<\/div>)/i)
+		{
+			do
+			{
+				$i++;
+			}
+			while (($i < $#lines) && ($lines[$i] !~ m/<div class=colLast>/i) && ($lines[$i] !~ m/(<div class=titel>)/i));
+			if ($lines[$i] =~ m/(<div class=titel>)/i)
+			{
+				last;
+			}
+			if ($i < $#lines)
+			{
+				if ($lines[$i] =~ m/<div class=colLast>(.*)<\/div>/gi)
+				{
+					$cr{'WLAN'}{'active'} = ($+ =~ m/Ein/i ? 'yes' : 'no');
+					next;
+				}
+			}
+		}
+		if ($lines[$i] =~ m/(<div class=colStat>Verschl(.*)sselung:<\/div>)/gi)
+		{
+			do
+			{
+				$i++;
+			}
+			while (($i < $#lines) && ($lines[$i] !~ m/<div class=colLast>/i) && ($lines[$i] !~ m/(<div class=titel>)/i));
+			if ($lines[$i] =~ m/(<div class=titel>)/i)
+			{
+				last;
+			}
+			if ($i < $#lines)
+			{
+				if ($lines[$i] =~ m/<div class=colLast>(.*)<\/div>/gi)
+				{
+					$cr{'WLAN'}{'encrypted'} = ($+ =~ m/Konfiguriert/i ? 'yes' : 'no');
+					next;
+				}
+			}
+		}		
+	}
+}
+
+sub _gatherAccess
+{
+	my $r = $_[0];
+	my %cr = %{$r};
+	my $l = $_[1];
+	my @lines = @{$l};
+	if ($cr{'Access'}{'starts_at'} < 0)
+	{
+		return;
+	}
+	for (my $i = ($cr{'Access'}{'starts_at'} + 1); $i < $#lines; $i++)
+	{
+		if ($lines[$i] =~ m/(<div class=titel>)/i)
+		{
+			last;
+		}
+		if ($lines[$i] =~ m/(<div class=colStat>Immer online:<\/div>)/i)
+		{
+			do
+			{
+				$i++;
+			}
+			while (($i < $#lines) && ($lines[$i] !~ m/<div class=colLast>/i) && ($lines[$i] !~ m/(<div class=titel>)/i));
+			if ($lines[$i] =~ m/(<div class=titel>)/i)
+			{
+				last;
+			}
+			if ($i < $#lines)
+			{
+				if ($lines[$i] =~ m/<div class=colLast>(.*)<\/div>/gi)
+				{
+					$cr{'Access'}{'always_on'} = ($+ =~ m/Ja/i ? 'yes' : 'no');
+					next;
+				}
+			}
+		}
+		if ($lines[$i] =~ m/(<div class=colStat>(.*)ffentliche WAN-IP:<\/div>)/gi)
+		{
+			do
+			{
+				$i++;
+			}
+			while (($i < $#lines) && ($lines[$i] !~ m/<div class=colLast>/i) && ($lines[$i] !~ m/(<div class=titel>)/i));
+			if ($lines[$i] =~ m/(<div class=titel>)/i)
+			{
+				last;
+			}
+			if ($i < $#lines)
+			{
+				if ($lines[$i] =~ m/<div class=colLast>(.*)<\/div>/gi)
+				{
+					$cr{'Access'}{'public_ip'} = $+;
+					next;
+				}
+			}
+		}		
+	}
+}
+
+sub _gatherDSL
+{
+	my $r = $_[0];
+	my %cr = %{$r};
+	my $l = $_[1];
+	my @lines = @{$l};
+	if ($cr{'DSL'}{'starts_at'} < 0)
+	{
+		return;
+	}
+	for (my $i = ($cr{'DSL'}{'starts_at'} + 1); $i < $#lines; $i++)
+	{
+		if ($lines[$i] =~ m/(<div class=titel>)/i)
+		{
+			last;
+		}
+		if ($lines[$i] =~ m/(<div class=colStat>DSL Downstream:<\/div>)/i)
+		{
+			do
+			{
+				$i++;
+			}
+			while (($i < $#lines) && ($lines[$i] !~ m/<div class=colLast>/i) && ($lines[$i] !~ m/(<div class=titel>)/i));
+			if ($lines[$i] =~ m/(<div class=titel>)/i)
+			{
+				last;
+			}
+			if ($i < $#lines)
+			{
+				if ($lines[$i] =~ m/<div class=colLast>(\d+) kbit\/s<\/div>/gi)
+				{
+					$cr{'DSL'}{'downstream'} = $+;
+					next;
+				}
+			}
+		}
+		if ($lines[$i] =~ m/(<div class=colStat>DSL Upstream:<\/div>)/gi)
+		{
+			do
+			{
+				$i++;
+			}
+			while (($i < $#lines) && ($lines[$i] !~ m/<div class=colLast>/i) && ($lines[$i] !~ m/(<div class=titel>)/i));
+			if ($lines[$i] =~ m/(<div class=titel>)/i)
+			{
+				last;
+			}
+			if ($i < $#lines)
+			{
+				if ($lines[$i] =~ m/<div class=colLast>(\d+) kbit\/s<\/div>/gi)
+				{
+					$cr{'DSL'}{'upstream'} = $+;
+					next;
+				}
+			}
+		}		
+	}
+}
+
+sub getInformation
+{
+	my $content = $_[0];
+	my $chapter = $_[1];
+	my $field = $_[2];
+	my @lines = split(/\n/x, $content);
+	my $linesCount = $#lines;
+	my %chapters = (
+		'WLAN'		=>	{
+							'starts_at'		=>	-1,
+							'active'		=>	'unknown',
+							'encrypted'		=>	'unknown'
+						},
+		'Access'	=>	{
+							'starts_at'		=>	-1,
+							'public_ip'		=>	'unknown',
+							'always_on'		=>	'unknown'
+						},
+		'DSL'		=>	{
+							'starts_at'		=>	-1,
+							'upstream'		=>	'unknown',
+							'downstream'	=>	'unknown'
+						}
+	);
+	if ($linesCount <= 0)
+	{
+		&_unknown('Did not received any status!');
+	}
+	for (my $index = 0; $index < $linesCount; $index++)
+	{
+		if (!($lines[$index] =~ m/^(<div class=titel>)/i))
+		{
+			next;
+		}
+		my $fLine = $lines[$index];
+		SWITCH:
+		{
+			$fLine =~ /WLAN \(Wireless LAN\)/i	&& do { $chapters{'WLAN'}{'starts_at'} = $index; last SWITCH; };
+			$fLine =~ /Internetzugang/i			&& do { $chapters{'Access'}{'starts_at'} = $index; last SWITCH; };
+			$fLine =~ /DSL-Anschluss/i			&& do { $chapters{'DSL'}{'starts_at'} = $index; last SWITCH; };
+			next;
+		};
+	}
+	SWITCH:
+	{
+		$chapter eq 'WLAN'						&& do { &_gatherWLAN(\%chapters, \@lines); last SWITCH; };
+		$chapter eq 'Access'					&& do { &_gatherAccess(\%chapters, \@lines); last SWITCH; };
+		$chapter eq 'DSL'						&& do { &_gatherDSL(\%chapters, \@lines); last SWITCH; };
+		&_unknown(sprintf('Cannot find information about the requested chapter (%s)', $chapter));
+	};
+	if (exists $chapters{$chapter}{$field})
+	{
+		return $chapters{$chapter}{$field};
+	}
+	&_unknown(sprintf('Cannot find information about the requested field (%s)', $field));
+}
+
 sub prober
 {
-	# TODO: Fill me :-D
+	if ($p_test !~ m/(.*)\/(.*)/g)
+	{
+		&_unknown('Malformed test name');
+	}
+	my ($c, $f) = split(/\//, $p_test);
+	# First, download the status page.
+	require LWP::UserAgent;
+	my $ua = LWP::UserAgent->new;
+	$ua->timeout($p_timeout);
+	my $res = $ua->get(sprintf('https://%s/cgi-bin/webcm?getpage=../html/top_newstatus.htm', $p_host));
+	if (!($res->is_success))
+	{
+		my $msg = sprintf('Failed to establish HTTPS session (%s)', $res->status_line);
+		&_fail($msg);
+	}
+	my $html = $res->content;
+	my $result = &getInformation($html, $c, $f);
+	&CRITICAL(sprintf('Result "%s" is considered as CRITICAL (%s)', $result, $p_critical)) if is_critical($result); 
+	&WARNING(sprintf('Result "%s" is considered as WARNING (%s)', $result, $p_warning)) if is_warning($result); 
+	&OK(sprintf('Result "%s" is considered as OK (%s)', $result, $p_ok)) if is_ok($result);
+	my $msg = sprintf('Result "%s" does not fit any (other) rule.', $result); 
+	&_unknown($msg);
 }
 
 sub main
@@ -220,4 +500,4 @@ __VERBOSE_PARAMETER_OUT
 
 # ###########################################################
 
-&UNKNOWN("Plugin exited without gathering a status.");
+&UNKNOWN('Plugin exited without gathering a status.');
