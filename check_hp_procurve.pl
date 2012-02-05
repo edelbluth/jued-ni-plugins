@@ -8,7 +8,7 @@
 
 use strict;
 
-my $VERSION = "0.0.1.2";
+my $VERSION = "0.0.2.3";
 
 # ########## Defining exit codes
 
@@ -300,7 +300,14 @@ sub prober
 	);
 	if ($error)
 	{
-		&UNKNOWN(sprintf('Failed to establish SNMP session (%s)', $error));
+		my $msg = sprintf('Failed to establish SNMP session (%s)', $error);
+		SWITCH:
+		{
+			$p_onfail =~ m/^c/i && do { &CRITICAL($msg); last SWITCH; };	
+			$p_onfail =~ m/^w/i && do { &WARNING($msg); last SWITCH; };	
+			$p_onfail =~ m/^o/i && do { &OK($msg); last SWITCH; };
+			&UNKNOWN($msg);	
+		};
 	}
 	my %result = (
 		'error'		=> 0,
