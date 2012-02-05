@@ -8,7 +8,7 @@
 
 use strict;
 
-my $VERSION = "0.0.1.1";
+my $VERSION = "0.0.1.2";
 
 # ########## Defining exit codes
 
@@ -71,7 +71,7 @@ sub OK # Parameter 1: Message
 # ###########################################################
 
 my $PROGRAM_HEADER = <<"__PROGRAM_HEADER";
-check_hp_procurve - Checks various hp ProCurve parameters for Nagios/Icinga
+check_hp_procurve.pl - Checks various hp ProCurve parameters for Nagios/Icinga
 Version $VERSION
 
 Copyright (c) 2012 by Juergen Edelbluth <www.jued.de>
