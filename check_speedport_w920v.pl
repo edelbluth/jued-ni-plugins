@@ -8,7 +8,7 @@
 
 use strict;
 
-my $VERSION = "0.0.1.1";
+my $VERSION = "0.0.2.3";
 
 # ########## Defining exit codes
 
@@ -34,6 +34,7 @@ my $p_onunknown = 'UNKNOWN';
 my $p_negate_critical = 0;
 my $p_negate_warning = 0;
 my $p_negate_ok = 0;
+my $p_ssl_nohostnamecheck = 0;
 
 # ########## Methods to exit with Nagios-/Icinga exit codes
 
@@ -92,7 +93,8 @@ sub readParameters
 		'u=s'	=> \$p_onunknown,
 		'no'	=> \$p_negate_ok,
 		'nw'	=> \$p_negate_warning,
-		'nc'	=> \$p_negate_critical
+		'nc'	=> \$p_negate_critical,
+		'nhc'	=> \$p_ssl_nohostnamecheck
 	);
 }
 
@@ -103,6 +105,7 @@ $PROGRAM_HEADER
 Usage:
 	${0} 
 	     -H <HostAddress>
+	     [-nhc]
 	     -T <TestName>
 	     -o <ValueForOK>
 	     [-no]
@@ -119,6 +122,7 @@ Usage:
 	Parameters:
 	    -h                       Show help and exit with status UNKNOWN
 	    -H <HostAddress>         The IP address or the host name of the speedport
+	    -nhc                     Don't check the Hostname when connecting via SSL
 	    -T <TestName>            The Test to execute. See listing below.
 	    -o <ValueForOK>          Regular expression to identify a result that is considered to be OK
 	    -w <ValueForWarning>     Regular expression to identify a result that is considered to be a WARNING
@@ -450,6 +454,8 @@ sub prober
 	# First, download the status page.
 	require LWP::UserAgent;
 	my $ua = LWP::UserAgent->new;
+	$ua->agent(sprintf('check_speedport_w920v.pl by Juergen Edelbluth/%s', $VERSION));
+	$ua->ssl_opts('verify_hostname' => (not $p_ssl_nohostnamecheck));
 	$ua->timeout($p_timeout);
 	my $res = $ua->get(sprintf('https://%s/cgi-bin/webcm?getpage=../html/top_newstatus.htm', $p_host));
 	if (!($res->is_success))
@@ -490,7 +496,8 @@ Parameters:
 	Negate OK regex (-no): ........ $p_negate_ok
 	Negate Warning regex (-nw): ... $p_negate_warning
 	Negate Critical regex (-nc): .. $p_negate_critical
-		
+	Don't check hostname (-nhc): .. $p_ssl_nohostnamecheck
+	
 __VERBOSE_PARAMETER_OUT
 	}
 	&prober();
