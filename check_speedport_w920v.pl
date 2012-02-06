@@ -2,13 +2,16 @@
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Icinga-/Nagios-Plugin "check_speedport_w920v.pl"                    #
-# by Juergen Edelbluth, www.jued.de                                   #
-# Licensed under GPL.                                                 #
+# Copyright (c) 2012  Juergen Edelbluth, www.jued.de                  #
+# This program is licensed under the GNU General Public License v3.   #
+# This program comes with ABSOLUTELY NO WARRANTY.                     #
+# This is free software, and you are welcome to redistribute it       #
+# under certain conditions; see LICENSE.txt for details.              #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 use strict;
 
-my $VERSION = "0.0.2.3";
+my $VERSION = "0.0.2.5";
 
 # ########## Defining exit codes
 
@@ -70,10 +73,11 @@ my $PROGRAM_HEADER = <<"__PROGRAM_HEADER";
 check_speedport_w920v.pl - Checks various Telekom Speedport W920V parameters for Nagios/Icinga
 Version $VERSION
 
-Copyright (c) 2012 by Juergen Edelbluth <www.jued.de>
-Licensed and released under GPL v3.
-
-Provided as-is - no warranty.
+Copyright (c) 2012  Juergen Edelbluth, www.jued.de                 
+This program is licensed under the GNU General Public License v3.  
+This program comes with ABSOLUTELY NO WARRANTY.                    
+This is free software, and you are welcome to redistribute it      
+under certain conditions; see LICENSE.txt for details.             
 
 __PROGRAM_HEADER
 
